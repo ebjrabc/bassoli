@@ -29,23 +29,23 @@ st.markdown("Escaneie o QR Code do seu cupom fiscal usando a câmera do celular.
 st.components.v1.html("""
 <script src="https://unpkg.com/html5-qrcode"></script>
 <div id="reader" style="width:100%"></div>
+<div id="status" style="margin-top:10px; font-weight:bold;"></div>
 <script>
 function onScanSuccess(decodedText, decodedResult) {
-  const params = new URLSearchParams(window.location.search);
-  if (!params.has("conteudo")) {
-    window.location.search = "?conteudo=" + encodeURIComponent(decodedText);
-  }
+  document.getElementById("status").innerText = "✅ QR Code lido!";
+  fetch(window.location.href.split('?')[0] + "?conteudo=" + encodeURIComponent(decodedText))
+    .then(() => console.log("Conteúdo enviado"));
 }
 new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(onScanSuccess);
 </script>
-""", height=500)
+""", height=550)
 
 # Recebe conteúdo via query string
 query_params = st.query_params
 if "conteudo" in query_params:
     conteudo = query_params["conteudo"]
     salvar_qrcode(conteudo)
-    st.success("✅ QR Code lido com sucesso!")
+    st.success("✅ QR Code recebido e salvo no banco de dados!")
     st.code(conteudo, language="text")
 
     # Decodifica se for cupom fiscal
