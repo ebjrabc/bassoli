@@ -5,10 +5,11 @@ import urllib.parse
 import requests
 from bs4 import BeautifulSoup
 
+# Configuração da página
 st.set_page_config(page_title="Leitor de Cupom Fiscal", layout="centered")
 
-# Função para salvar dados estruturados
-def salvar_nota(url, chave, emitente, data_emissao, produtos, total):
+# Inicializa o banco e garante que a tabela existe
+def inicializar_banco():
     conn = sqlite3.connect("cupons.db")
     cursor = conn.cursor()
     cursor.execute("""
@@ -23,6 +24,15 @@ def salvar_nota(url, chave, emitente, data_emissao, produtos, total):
             data_hora TEXT
         )
     """)
+    conn.commit()
+    conn.close()
+
+inicializar_banco()
+
+# Função para salvar dados estruturados
+def salvar_nota(url, chave, emitente, data_emissao, produtos, total):
+    conn = sqlite3.connect("cupons.db")
+    cursor = conn.cursor()
     cursor.execute("INSERT INTO cupons (url, chave, emitente, data_emissao, produtos, total, data_hora) VALUES (?, ?, ?, ?, ?, ?, ?)",
                    (url, chave, emitente, data_emissao, produtos, total, datetime.now().isoformat()))
     conn.commit()
