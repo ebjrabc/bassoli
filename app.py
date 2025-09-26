@@ -1,9 +1,11 @@
 import streamlit as st
 import sqlite3
 from datetime import datetime
-import urllib.parse
 import requests
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 
 # Configuração da página
 st.set_page_config(page_title="Leitor de Cupom Fiscal", layout="centered")
@@ -38,29 +40,32 @@ def salvar_nota(url, chave, emitente, data_emissao, produtos, total):
     conn.commit()
     conn.close()
 
-# Extração real via scraping da SEFAZ-SP
+# Extração real via Selenium
 def extrair_dados_nota_real(url):
     try:
-        response = requests.get(url, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+        driver.get(url)
+        driver.implicitly_wait(10)
 
-        # Chave de acesso
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+        # Extrai dados principais
         chave_tag = soup.find('span', id='lblChaveAcesso')
-        chave = chave_tag.text.strip() if chave_tag else "N/A"
-
-        # Emitente
         emitente_tag = soup.find('span', id='lblEmitente')
-        emitente = emitente_tag.text.strip() if emitente_tag else "N/A"
-
-        # Data de emissão
         data_tag = soup.find('span', id='lblDataEmissao')
-        data_emissao = data_tag.text.strip() if data_tag else "N/A"
-
-        # Valor total
         total_tag = soup.find('span', id='lblValorTotalNota')
+
+        chave = chave_tag.text.strip() if chave_tag else "N/A"
+        emitente = emitente_tag.text.strip() if emitente_tag else "N/A"
+        data_emissao = data_tag.text.strip() if data_tag else "N/A"
         total = total_tag.text.strip().replace("R$", "").strip() if total_tag else "N/A"
 
-        # Produtos
+        # Extrai produtos
         produtos = []
         itens = soup.select('table#tabResult tbody tr')
         for item in itens:
@@ -72,6 +77,7 @@ def extrair_dados_nota_real(url):
                 valor_total = cols[3].text.strip()
                 produtos.append(f"{nome} — Qtde: {qtde} — Vl. Unit: {valor_unit} — Vl. Total: {valor_total}")
 
+        driver.quit()
         salvar_nota(url, chave, emitente, data_emissao, "\n".join(produtos), total)
         return chave, emitente, data_emissao, produtos, total
 
@@ -81,7 +87,7 @@ def extrair_dados_nota_real(url):
 
 # Interface principal
 st.title("📷 Leitor de Cupom Fiscal")
-st.markdown("Escaneie o QR Code usando a câmera ou envie uma imagem.")
+st.markdown("Escaneie o QR Code usando a câmera do celular.")
 
 # Leitura via câmera
 st.components.v1.html("""
