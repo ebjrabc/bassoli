@@ -2,73 +2,145 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 import urllib.parse
+import requests
+from bs4 import BeautifulSoup
+from PIL import Image
+from pyzbar.pyzbar import decode
+import subprocess
+import sys
 
+# Instala dependências automaticamente
+def instalar_dependencias():
+    pacotes = ["requests", "beautifulsoup4", "pyzbar", "Pillow"]
+    for pacote in pacotes:
+        subprocess.run([sys.executable, "-m", "pip", "install", pacote])
+
+instalar_dependencias()
+
+# Configuração da página
 st.set_page_config(page_title="Leitor de Cupom Fiscal", layout="centered")
 
-# Função para salvar no banco
-def salvar_qrcode(conteudo):
+# Função para salvar dados estruturados
+def salvar_nota(url, chave, emitente, data_emissao, produtos, total):
     conn = sqlite3.connect("cupons.db")
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cupons (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conteudo TEXT NOT NULL,
-            data_hora TEXT NOT NULL
+            url TEXT,
+            chave TEXT,
+            emitente TEXT,
+            data_emissao TEXT,
+            produtos TEXT,
+            total TEXT,
+            data_hora TEXT
         )
     """)
-    cursor.execute("INSERT INTO cupons (conteudo, data_hora) VALUES (?, ?)",
-                   (conteudo, datetime.now().isoformat()))
+    cursor.execute("INSERT INTO cupons (url, chave, emitente, data_emissao, produtos, total, data_hora) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                   (url, chave, emitente, data_emissao, produtos, total, datetime.now().isoformat()))
     conn.commit()
     conn.close()
 
-# Interface
+# Função para extrair dados da nota fiscal
+def extrair_dados_nota(url):
+    try:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, "html.parser")
+        texto = soup.get_text(separator="\n", strip=True)
+
+        chave = ""
+        emitente = ""
+        data_emissao = ""
+        produtos = []
+        total = ""
+
+        for linha in texto.split("\n"):
+            if "Chave de Acesso" in linha:
+                chave = linha.split(":")[-1].strip()
+            elif "Emitente:" in linha:
+                emitente = linha.split(":")[-1].strip()
+            elif "Data de Emissão" in linha:
+                data_emissao = linha.split(":")[-1].strip()
+            elif "Valor Total R$" in linha:
+                total = linha.split("R$")[-1].strip()
+            elif "Qtde:" in linha and "Vl. Unit" in linha:
+                produtos.append(linha.strip())
+
+        salvar_nota(url, chave, emitente, data_emissao, "\n".join(produtos), total)
+        return chave, emitente, data_emissao, produtos, total
+    except Exception as e:
+        st.error(f"Erro ao acessar o site da SEFAZ: {e}")
+        return "", "", "", [], ""
+
+# Interface principal
 st.title("📷 Leitor de Cupom Fiscal")
-st.markdown("Escaneie o QR Code do seu cupom fiscal usando a câmera do celular.")
+modo = st.radio("Escolha o modo de leitura:", ["📸 Câmera", "🖼️ Imagem do QR Code"])
 
-# Componente HTML que ativa a câmera
-st.components.v1.html("""
-<script src="https://unpkg.com/html5-qrcode"></script>
-<div id="reader" style="width:100%"></div>
-<div id="status" style="margin-top:10px; font-weight:bold;"></div>
-<script>
-function onScanSuccess(decodedText, decodedResult) {
-  document.getElementById("status").innerText = "✅ QR Code lido!";
-  window.location.href = window.location.pathname + "?conteudo=" + encodeURIComponent(decodedText);
-}
-new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(onScanSuccess);
-</script>
-""", height=550)
+if modo == "📸 Câmera":
+    st.markdown("Escaneie o QR Code do seu cupom fiscal usando a câmera do celular.")
+    st.components.v1.html("""
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <div id="reader" style="width:100%"></div>
+    <div id="status" style="margin-top:10px; font-weight:bold;"></div>
+    <script>
+    function onScanSuccess(decodedText, decodedResult) {
+      document.getElementById("status").innerText = "✅ QR Code lido!";
+      window.location.href = window.location.pathname + "?conteudo=" + encodeURIComponent(decodedText);
+    }
+    new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(onScanSuccess);
+    </script>
+    """, height=550)
 
-# Recebe conteúdo via query string
+elif modo == "🖼️ Imagem do QR Code":
+    imagem = st.file_uploader("Envie uma imagem com o QR Code do cupom fiscal", type=["png", "jpg", "jpeg"])
+    if imagem:
+        img = Image.open(imagem)
+        resultado = decode(img)
+        if resultado:
+            conteudo = resultado[0].data.decode("utf-8")
+            st.success("✅ QR Code lido com sucesso!")
+            st.code(conteudo, language="text")
+            chave, emitente, data_emissao, produtos, total = extrair_dados_nota(conteudo)
+            st.markdown(f"**Chave de Acesso:** {chave}")
+            st.markdown(f"**Emitente:** {emitente}")
+            st.markdown(f"**Data de Emissão:** {data_emissao}")
+            st.markdown(f"**Valor Total:** R$ {total}")
+            st.markdown("**Produtos:**")
+            for p in produtos:
+                st.write(f"• {p}")
+        else:
+            st.error("❌ Não foi possível ler o QR Code da imagem.")
+
+# Recebe conteúdo via query string (modo câmera)
 query_params = st.query_params
 if "conteudo" in query_params:
     conteudo = query_params["conteudo"]
-    salvar_qrcode(conteudo)
-    st.success("✅ QR Code recebido e salvo no banco de dados!")
+    st.success("✅ QR Code recebido!")
     st.code(conteudo, language="text")
+    chave, emitente, data_emissao, produtos, total = extrair_dados_nota(conteudo)
+    st.markdown(f"**Chave de Acesso:** {chave}")
+    st.markdown(f"**Emitente:** {emitente}")
+    st.markdown(f"**Data de Emissão:** {data_emissao}")
+    st.markdown(f"**Valor Total:** R$ {total}")
+    st.markdown("**Produtos:**")
+    for p in produtos:
+        st.write(f"• {p}")
 
-    # Decodifica se for cupom fiscal
-    if "chNFe=" in conteudo or "nfe.sefaz" in conteudo:
-        st.markdown("🔍 Parece ser um cupom fiscal eletrônico.")
-        try:
-            decoded = urllib.parse.unquote(conteudo)
-            st.text_area("Conteúdo decodificado:", decoded, height=200)
-        except:
-            st.warning("Não foi possível decodificar o conteúdo.")
-else:
-    st.info("Aguardando leitura do QR Code...")
-
-# Exibe cupons salvos
-st.markdown("### 🧾 Cupons salvos no banco de dados")
+# Histórico de notas salvas
+st.markdown("### 📚 Histórico de notas salvas")
 conn = sqlite3.connect("cupons.db")
 cursor = conn.cursor()
-cursor.execute("SELECT conteudo, data_hora FROM cupons ORDER BY data_hora DESC")
+cursor.execute("SELECT chave, emitente, data_emissao, total, produtos, data_hora FROM cupons ORDER BY data_hora DESC")
 registros = cursor.fetchall()
 conn.close()
 
 if registros:
-    for conteudo, data_hora in registros:
+    for chave, emitente, data_emissao, total, produtos, data_hora in registros:
         st.write(f"📌 {data_hora}")
-        st.code(conteudo, language="text")
+        st.markdown(f"**Chave:** {chave}")
+        st.markdown(f"**Emitente:** {emitente}")
+        st.markdown(f"**Data:** {data_emissao}")
+        st.markdown(f"**Total:** R$ {total}")
+        st.text_area("Produtos:", produtos, height=100)
 else:
-    st.info("Nenhum cupom salvo ainda.")
+    st.info("Nenhuma nota fiscal salva ainda.")
