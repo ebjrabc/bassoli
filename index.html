@@ -1,25 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Scanner QR Code</title>
+  <title>Leitor de QR Code</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body>
-  <h2>📷 Escaneie o QR Code</h2>
-  <div id="reader" style="width:300px;"></div>
-
+  <h2>📷 Escaneie o QR Code do Cupom Fiscal</h2>
+  <div id="reader" style="width:100%"></div>
   <script>
-    const scanner = new Html5Qrcode("reader");
-    scanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      qrCodeMessage => {
-        scanner.stop();
-        window.location.href = "https://bassoli.streamlit.app/?conteudo=" + encodeURIComponent(qrCodeMessage);
-      },
-      errorMessage => {}
-    );
+    function onScanSuccess(decodedText, decodedResult) {
+      window.location.href = "https://SEU-APP-STREAMLIT.streamlit.app/?conteudo=" + encodeURIComponent(decodedText);
+    }
+    new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(onScanSuccess);
   </script>
 </body>
 </html>
