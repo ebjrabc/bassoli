@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Scanner QR Code</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+  <h2>📷 Escaneie o QR Code</h2>
+  <div id="reader" style="width:300px;"></div>
+
+  <script>
+    const scanner = new Html5Qrcode("reader");
+    scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 250 },
+      qrCodeMessage => {
+        scanner.stop();
+        window.location.href = "https://bassoli.streamlit.app/?conteudo=" + encodeURIComponent(qrCodeMessage);
+      },
+      errorMessage => {}
+    );
+  </script>
+</body>
+</html>
