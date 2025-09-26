@@ -4,20 +4,7 @@ from datetime import datetime
 import urllib.parse
 import requests
 from bs4 import BeautifulSoup
-from PIL import Image
-from pyzbar.pyzbar import decode
-import subprocess
-import sys
 
-# Instala dependências automaticamente
-def instalar_dependencias():
-    pacotes = ["requests", "beautifulsoup4", "pyzbar", "Pillow"]
-    for pacote in pacotes:
-        subprocess.run([sys.executable, "-m", "pip", "install", pacote])
-
-instalar_dependencias()
-
-# Configuração da página
 st.set_page_config(page_title="Leitor de Cupom Fiscal", layout="centered")
 
 # Função para salvar dados estruturados
@@ -94,22 +81,27 @@ if modo == "📸 Câmera":
 elif modo == "🖼️ Imagem do QR Code":
     imagem = st.file_uploader("Envie uma imagem com o QR Code do cupom fiscal", type=["png", "jpg", "jpeg"])
     if imagem:
-        img = Image.open(imagem)
-        resultado = decode(img)
-        if resultado:
-            conteudo = resultado[0].data.decode("utf-8")
-            st.success("✅ QR Code lido com sucesso!")
-            st.code(conteudo, language="text")
-            chave, emitente, data_emissao, produtos, total = extrair_dados_nota(conteudo)
-            st.markdown(f"**Chave de Acesso:** {chave}")
-            st.markdown(f"**Emitente:** {emitente}")
-            st.markdown(f"**Data de Emissão:** {data_emissao}")
-            st.markdown(f"**Valor Total:** R$ {total}")
-            st.markdown("**Produtos:**")
-            for p in produtos:
-                st.write(f"• {p}")
-        else:
-            st.error("❌ Não foi possível ler o QR Code da imagem.")
+        st.image(imagem, caption="Imagem enviada", use_column_width=True)
+        st.info("🔄 Enviando imagem para API externa...")
+        api_url = "https://api.qrserver.com/v1/read-qr-code/"
+        response = requests.post(api_url, files={"file": imagem})
+        try:
+            conteudo = response.json()[0]["symbol"][0]["data"]
+            if conteudo:
+                st.success("✅ QR Code lido com sucesso!")
+                st.code(conteudo, language="text")
+                chave, emitente, data_emissao, produtos, total = extrair_dados_nota(conteudo)
+                st.markdown(f"**Chave de Acesso:** {chave}")
+                st.markdown(f"**Emitente:** {emitente}")
+                st.markdown(f"**Data de Emissão:** {data_emissao}")
+                st.markdown(f"**Valor Total:** R$ {total}")
+                st.markdown("**Produtos:**")
+                for p in produtos:
+                    st.write(f"• {p}")
+            else:
+                st.error("❌ QR Code não reconhecido na imagem.")
+        except:
+            st.error("❌ Erro ao processar a imagem. Verifique se é um QR Code válido.")
 
 # Recebe conteúdo via query string (modo câmera)
 query_params = st.query_params
