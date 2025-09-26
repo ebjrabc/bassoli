@@ -1,11 +1,13 @@
-from flask import Flask, render_template, request, jsonify
+import streamlit as st
+import cv2
+import numpy as np
 import sqlite3
 from datetime import datetime
 
-app = Flask(__name__)
+st.set_page_config(page_title="Leitor de QR Code", layout="centered")
 
-# Cria banco e tabela se não existir
-def init_db():
+# Banco de dados
+def salvar_qrcode(conteudo):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("""
@@ -15,28 +17,33 @@ def init_db():
             data_hora TEXT NOT NULL
         )
     """)
-    conn.commit()
-    conn.close()
-
-init_db()
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-@app.route("/salvar", methods=["POST"])
-def salvar():
-    conteudo = request.json.get("conteudo")
-    if not conteudo:
-        return jsonify({"status": "erro", "mensagem": "QR Code vazio"}), 400
-
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
     cursor.execute("INSERT INTO qrcodes (conteudo, data_hora) VALUES (?, ?)",
                    (conteudo, datetime.now().isoformat()))
     conn.commit()
     conn.close()
-    return jsonify({"status": "ok", "mensagem": "QR Code salvo com sucesso"})
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# Leitura do QR Code
+def ler_qrcode(imagem):
+    detector = cv2.QRCodeDetector()
+    data, points, _ = detector.detectAndDecode(imagem)
+    return data
+
+# Interface
+st.title("📷 Leitor de QR Code via Imagem")
+st.write("Envie uma foto do QR Code ou use a câmera do celular.")
+
+arquivo = st.file_uploader("Escolha uma imagem", type=["jpg", "jpeg", "png"])
+
+if arquivo:
+    file_bytes = np.asarray(bytearray(arquivo.read()), dtype=np.uint8)
+    imagem = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+
+    st.image(imagem, caption="Imagem enviada", use_column_width=True)
+
+    resultado = ler_qrcode(imagem)
+    if resultado:
+        st.success(f"✅ QR Code detectado:\n\n{resultado}")
+        salvar_qrcode(resultado)
+        st.info("📦 QR Code salvo no banco de dados.")
+    else:
+        st.error("❌ Nenhum QR Code detectado na imagem.")
