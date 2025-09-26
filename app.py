@@ -1,12 +1,12 @@
 import streamlit as st
+from PIL import Image
+from pyzbar.pyzbar import decode
 import sqlite3
-import numpy as np
-import cv2
 from datetime import datetime
 
 st.set_page_config(page_title="Leitor de QR Code", layout="centered")
 
-# Função para salvar no banco
+# Banco de dados
 def salvar_qrcode(conteudo):
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -22,22 +22,21 @@ def salvar_qrcode(conteudo):
     conn.commit()
     conn.close()
 
-# Função para ler QR Code com OpenCV
+# Leitura do QR Code
 def ler_qrcode(imagem):
-    detector = cv2.QRCodeDetector()
-    data, points, _ = detector.detectAndDecode(imagem)
-    return data
+    resultado = decode(imagem)
+    if resultado:
+        return resultado[0].data.decode("utf-8")
+    return None
 
-# Interface Streamlit
-st.title("📷 Leitor de QR Code")
-st.write("Envie uma imagem do QR Code ou use a câmera do celular.")
+# Interface
+st.title("📷 Leitor de QR Code via Imagem")
+st.write("Envie uma foto do QR Code ou use a câmera do celular.")
 
 arquivo = st.file_uploader("Escolha uma imagem", type=["jpg", "jpeg", "png"])
 
 if arquivo:
-    file_bytes = np.asarray(bytearray(arquivo.read()), dtype=np.uint8)
-    imagem = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
+    imagem = Image.open(arquivo)
     st.image(imagem, caption="Imagem enviada", use_column_width=True)
 
     resultado = ler_qrcode(imagem)
