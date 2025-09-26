@@ -31,8 +31,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Verifica se há conteúdo recebido via query string
-query_params = st.experimental_get_query_params()
+query_params = st.query_params
 if "conteudo" in query_params:
-    conteudo = query_params["conteudo"][0]
+    conteudo = query_params["conteudo"]
     salvar_qrcode(conteudo)
     st.success(f"✅ QR Code recebido: {conteudo}")
