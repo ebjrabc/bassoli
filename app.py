@@ -33,8 +33,7 @@ st.components.v1.html("""
 <script>
 function onScanSuccess(decodedText, decodedResult) {
   document.getElementById("status").innerText = "✅ QR Code lido!";
-  fetch(window.location.href.split('?')[0] + "?conteudo=" + encodeURIComponent(decodedText))
-    .then(() => console.log("Conteúdo enviado"));
+  window.location.href = window.location.pathname + "?conteudo=" + encodeURIComponent(decodedText);
 }
 new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }).render(onScanSuccess);
 </script>
@@ -58,3 +57,18 @@ if "conteudo" in query_params:
             st.warning("Não foi possível decodificar o conteúdo.")
 else:
     st.info("Aguardando leitura do QR Code...")
+
+# Exibe cupons salvos
+st.markdown("### 🧾 Cupons salvos no banco de dados")
+conn = sqlite3.connect("cupons.db")
+cursor = conn.cursor()
+cursor.execute("SELECT conteudo, data_hora FROM cupons ORDER BY data_hora DESC")
+registros = cursor.fetchall()
+conn.close()
+
+if registros:
+    for conteudo, data_hora in registros:
+        st.write(f"📌 {data_hora}")
+        st.code(conteudo, language="text")
+else:
+    st.info("Nenhum cupom salvo ainda.")
